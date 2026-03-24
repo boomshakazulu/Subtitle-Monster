@@ -1,7 +1,6 @@
 ﻿import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import { Translator } from "deepl-node";
 import { connectDb } from "./db.js";
 import { Movie } from "./models/Movie.js";
 import { Subtitle } from "./models/Subtitle.js";
@@ -12,10 +11,6 @@ dotenv.config();
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: "5mb" }));
-
-const provider = (process.env.TRANSLATION_PROVIDER || "deepl").toLowerCase();
-const authKey = process.env.DEEPL_AUTH_KEY;
-const translator = authKey ? new Translator(authKey) : null;
 
 const localUrl = process.env.LOCAL_TRANSLATOR_URL || "http://localhost:8000";
 const localColdStartMs = Number(process.env.LOCAL_COLD_START_MS || 5000);
@@ -91,17 +86,6 @@ async function waitForLocalService(timeoutMs) {
   return false;
 }
 
-async function translateWithDeepL(texts, sourceLang, targetLang) {
-  if (!translator) {
-    throw new Error("DEEPL_AUTH_KEY not configured");
-  }
-  const result = await translator.translateText(texts, sourceLang || null, targetLang, {
-    preserveFormatting: true,
-    splitSentences: "nonewlines"
-  });
-  return Array.isArray(result) ? result.map((r) => r.text) : [result.text];
-}
-
 function mapToNllb(code) {
   if (!code) return null;
   if (code.includes("_")) return code;
@@ -161,7 +145,7 @@ app.get("/api/health", async (req, res) => {
   res.json({
     ok: true,
     time: new Date().toISOString(),
-    provider,
+    provider: "local",
     queueLength
   });
 });
@@ -314,7 +298,7 @@ app.post("/api/subtitles/:id/translate", async (req, res) => {
     const existing = await Translation.findOne({
       subtitle: subtitle._id,
       targetLang: targetLang.toUpperCase(),
-      provider
+      provider: "local"
     }).lean();
 
     if (existing) {
@@ -328,16 +312,9 @@ app.post("/api/subtitles/:id/translate", async (req, res) => {
       });
     }
 
-    if (provider === "local" && !subtitle.language) {
-      return res.status(400).json({ error: "sourceLang is required for local translation" });
-    }
-
     const entries = parseSrt(subtitle.srtText);
     const texts = entries.map((e) => e.text);
-    const translatedTexts =
-      provider === "local"
-        ? await translateWithLocal(texts, subtitle.language, targetLang)
-        : await translateWithDeepL(texts, subtitle.language, targetLang);
+    const translatedTexts = await translateWithLocal(texts, subtitle.language, targetLang);
 
     const outEntries = entries.map((e, i) => ({
       ...e,
@@ -348,7 +325,7 @@ app.post("/api/subtitles/:id/translate", async (req, res) => {
     const translation = await Translation.create({
       subtitle: subtitle._id,
       targetLang: targetLang.toUpperCase(),
-      provider,
+      provider: "local",
       srtText: outSrt
     });
 

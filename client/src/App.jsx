@@ -154,7 +154,7 @@ function App() {
         <div className="grid gap-4 rounded-2xl border border-stroke bg-gradient-to-br from-[rgba(255,138,0,0.12)] to-[rgba(0,209,255,0.08)] p-6 shadow-glow">
           <div className="flex items-baseline justify-between">
             <span className="text-xs uppercase tracking-[0.12em] text-muted">Provider</span>
-            <span className="text-lg font-semibold">DeepL / Local NLLB</span>
+            <span className="text-lg font-semibold">Local NLLB</span>
           </div>
           <div className="text-sm text-muted">
             Cache + queue enabled. Cold start budget: 5 seconds.
